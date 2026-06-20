@@ -1,0 +1,22 @@
+# Bytecode de Python
+__pycache__/
+*.pyc
+
+# Modelos ONNX (pueden pesar más de 100MB)
+*.onnx
+
+# Entornos virtuales
+venv/
+env/
+.venv/
+
+# Variables de entorno
+.env
+
+# Empaquetado / distribución
+*.egg-info/
+dist/
+build/
+
+#planificacion
+plan.md
