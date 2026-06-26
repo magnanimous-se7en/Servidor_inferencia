@@ -21,7 +21,7 @@ from PIL import Image
 # --------------------------------------------------------------------------- #
 
 # Ruta al modelo ONNX. Puede no existir al iniciar (ver carga diferida abajo).
-RUTA_MODELO: str = "model/modelo.onnx"
+RUTA_MODELO: str = "model/bestmodel.onnx"
 
 # Tamaño al que se redimensiona la imagen antes de la inferencia.
 # IMPORTANTE: confirmar con quien entrenó el modelo (ver README -> Notas).
