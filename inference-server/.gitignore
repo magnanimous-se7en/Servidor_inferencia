@@ -2,9 +2,6 @@
 __pycache__/
 *.pyc
 
-# Modelos ONNX (pueden pesar más de 100MB)
-*.onnx
-
 # Entornos virtuales
 venv/
 env/
