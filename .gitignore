@@ -12,3 +12,8 @@ env/
 
 # Variables de entorno
 .env
+
+# Archivos del modelo PyTorch fuente (no versionar, solo el .onnx exportado)
+*.pth
+*.pth.zip
+best_model_resnet50/

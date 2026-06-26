@@ -2,8 +2,8 @@
 
 Referencia de la API para integrar el servidor de inferencia desde el backend.
 
-El servicio recibe una imagen de tomografía y devuelve si detecta cáncer junto
-con la confianza del modelo.
+El servicio recibe una imagen de tomografía y clasifica el tejido en una de
+cuatro categorías: HGC, LGC, NST o NTL.
 
 ---
 
@@ -35,7 +35,7 @@ Verifica que el servidor esté vivo (útil para monitoreo).
 
 ### `POST /predict` — Predicción
 
-Endpoint principal. Recibe una imagen y devuelve la predicción del modelo.
+Endpoint principal. Recibe una imagen y devuelve la clasificación del modelo.
 
 - **Content-Type:** `multipart/form-data`
 - **Campo requerido:** `file` → archivo de imagen (PNG, JPG, etc.).
@@ -48,16 +48,25 @@ normaliza internamente. **No** hay que preprocesar nada del lado del backend.
 ```json
 {
   "has_cancer": true,
-  "confidence": 0.9123,
-  "label": "cancer"
+  "confidence": 0.8731,
+  "label": "HGC"
 }
 ```
 
-| Campo        | Tipo     | Descripción                                       |
-| ------------ | -------- | ------------------------------------------------- |
-| `has_cancer` | `bool`   | `true` si la confianza ≥ 0.5                       |
-| `confidence` | `float`  | Probabilidad de cáncer, redondeada a 4 decimales  |
-| `label`      | `string` | `"cancer"` o `"normal"`                            |
+| Campo        | Tipo     | Descripción                                                              |
+| ------------ | -------- | ------------------------------------------------------------------------ |
+| `has_cancer` | `bool`   | `true` cuando `label` es `"HGC"` o `"LGC"` (tejido cancerígeno)        |
+| `confidence` | `float`  | Probabilidad de la clase predicha, redondeada a 4 decimales             |
+| `label`      | `string` | Clase predicha: `"HGC"`, `"LGC"`, `"NST"` o `"NTL"` (ver tabla abajo) |
+
+**Significado de las clases:**
+
+| Clase | Significado        | `has_cancer` |
+| ----- | ------------------ | ------------ |
+| `HGC` | High Grade Cancer  | `true`       |
+| `LGC` | Low Grade Cancer   | `true`       |
+| `NST` | Normal Surrounding Tissue | `false` |
+| `NTL` | Normal Tissue-Like | `false`      |
 
 ---
 
@@ -91,8 +100,9 @@ if (!res.ok) {
   throw new Error(`Error ${res.status}: ${detail}`);
 }
 
-const data = await res.json(); // { has_cancer, confidence, label }
-console.log(data);
+const data = await res.json();
+// { has_cancer: true, confidence: 0.8731, label: "HGC" }
+console.log(data.label, data.has_cancer ? "CANCER" : "NORMAL");
 ```
 
 ### Python — `requests`
@@ -107,7 +117,9 @@ with open("tomografia.png", "rb") as f:
     )
 
 res.raise_for_status()
-print(res.json())  # { 'has_cancer': ..., 'confidence': ..., 'label': ... }
+data = res.json()
+# { 'has_cancer': True, 'confidence': 0.8731, 'label': 'HGC' }
+print(data["label"], "CANCER" if data["has_cancer"] else "NORMAL")
 ```
 
 ### curl
@@ -130,28 +142,9 @@ FastAPI expone la especificación automáticamente:
 
 ---
 
-## ⚠️ Estado actual / limitación conocida
-
-A la fecha, **`POST /predict` devuelve `503 "El modelo no está cargado"`** en
-producción. Esto ocurre porque el archivo `model/modelo.onnx` está ignorado en
-git (pesa más de 100MB) y aún **no está disponible en el servidor de Render**.
-
-- El servidor está online (`GET /` responde `200`).
-- El **contrato de la API NO cambiará** cuando el modelo esté disponible: una vez
-  que el `.onnx` esté en Render, `/predict` empezará a devolver el JSON de
-  predicción descrito arriba.
-- El backend ya puede integrarse contra este contrato; conviene manejar el `503`
-  de forma controlada mientras tanto.
-
----
-
 ## Nota sobre el preprocesamiento
 
-El servidor asume el siguiente preprocesamiento: conversión a RGB, redimensionado
-a **224×224**, normalización dividiendo entre **255.0**, orden de canales **CHW**
-y dimensión de batch `(1, 3, 224, 224)`. La interpretación de la salida asume
-sigmoide (una probabilidad) o softmax (índice 1 = "cancer").
-
-> Estos valores deben **confirmarse con quien entrenó el modelo**. Si el modelo
-> se entrenó con otro tamaño, otra normalización u otro orden de clases, las
-> predicciones serán incorrectas (ver `inference-server/README.md`).
+El servidor aplica: conversión a RGB, redimensionado a **224×224**, normalización
+dividiendo entre **255.0**, orden de canales **CHW** y dimensión de batch
+`(1, 3, 224, 224)`. La salida del modelo (4 logits) se pasa por softmax para
+obtener probabilidades; la clase con mayor probabilidad es la predicción final.

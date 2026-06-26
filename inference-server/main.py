@@ -21,14 +21,17 @@ from PIL import Image
 # --------------------------------------------------------------------------- #
 
 # Ruta al modelo ONNX. Puede no existir al iniciar (ver carga diferida abajo).
-RUTA_MODELO: str = "model/bestmodel.onnx"
+RUTA_MODELO: str = "model/modelo.onnx"
 
 # Tamaño al que se redimensiona la imagen antes de la inferencia.
-# IMPORTANTE: confirmar con quien entrenó el modelo (ver README -> Notas).
 TAMANO_ENTRADA: tuple[int, int] = (224, 224)
 
-# Umbral de decisión: si la confianza supera este valor se considera "cancer".
-UMBRAL_DECISION: float = 0.5
+# Clases en el mismo orden que la capa de salida del modelo.
+# Índices 0-3: HGC, LGC, NST, NTL
+CLASES: list[str] = ["HGC", "LGC", "NST", "NTL"]
+
+# Clases que se consideran positivas para cáncer.
+CLASES_CANCER: set[str] = {"HGC", "LGC"}
 
 # --------------------------------------------------------------------------- #
 # Aplicación FastAPI
@@ -180,22 +183,18 @@ async def predecir(file: UploadFile = File(...)) -> dict[str, object]:
             detail=f"Error al ejecutar la inferencia: {error}",
         ) from error
 
-    # 4. Interpretar la salida del modelo.
-    #    Se asume que la primera salida contiene la(s) probabilidad(es).
-    #    Soportamos tanto salida escalar (sigmoide) como vector (softmax).
+    # 4. Interpretar la salida del modelo (4 clases: HGC, LGC, NST, NTL).
+    #    El modelo devuelve logits → aplicamos softmax para obtener probabilidades.
     try:
-        prediccion = np.asarray(salidas[0]).flatten()
+        logits = np.asarray(salidas[0]).flatten().astype(np.float64)
+        # Softmax numéricamente estable
+        exp_logits = np.exp(logits - logits.max())
+        probabilidades = exp_logits / exp_logits.sum()
 
-        if prediccion.size == 1:
-            # Salida tipo sigmoide: una sola probabilidad de "cancer".
-            confianza = float(prediccion[0])
-        else:
-            # Salida tipo softmax: tomamos la probabilidad de la clase "cancer".
-            # Convención asumida: índice 1 = cancer, índice 0 = normal.
-            confianza = float(prediccion[1])
-
-        tiene_cancer = confianza >= UMBRAL_DECISION
-        etiqueta = "cancer" if tiene_cancer else "normal"
+        idx_predicho = int(np.argmax(probabilidades))
+        etiqueta = CLASES[idx_predicho]
+        confianza = float(probabilidades[idx_predicho])
+        tiene_cancer = etiqueta in CLASES_CANCER
     except Exception as error:  # noqa: BLE001 - salida con formato inesperado
         raise HTTPException(
             status_code=500,
