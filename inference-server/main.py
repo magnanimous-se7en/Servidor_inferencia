@@ -21,7 +21,7 @@ from PIL import Image
 # --------------------------------------------------------------------------- #
 
 # Ruta al modelo ONNX. Puede no existir al iniciar (ver carga diferida abajo).
-RUTA_MODELO: str = "model/modelo.onnx"
+RUTA_MODELO: str = "model/best_model_efficientnet_b3.onnx"
 
 # Tamaño al que se redimensiona la imagen antes de la inferencia.
 TAMANO_ENTRADA: tuple[int, int] = (224, 224)
